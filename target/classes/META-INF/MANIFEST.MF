@@ -1,3 +1,0 @@
-Can-Redefine-Classes: true
-Can-Retransform-Classes: true
-Premain-Class: net.reduck.hotfix.agent.Launcher
