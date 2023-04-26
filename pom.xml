@@ -1,0 +1,45 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+  <groupId>org.example</groupId>
+  <artifactId>reduck-hotfix-agent</artifactId>
+  <version>1.0-SNAPSHOT</version>
+  <name>reduck-hotfix-agent</name>
+  <url>http://maven.apache.org</url>
+
+  <packaging>jar</packaging>
+
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-jar-plugin</artifactId>
+        <version>3.0.2</version>
+        <executions>
+          <execution>
+            <phase>package</phase>
+            <goals>
+              <goal>jar</goal>
+            </goals>
+            <configuration>
+              <classifier>agentLoader</classifier>
+              <classesDirectory>target/classes</classesDirectory>
+              <archive>
+                <manifest>
+                  <addClasspath>true</addClasspath>
+                  <mainClass>net.reduck.hotfix.agent.Launcher</mainClass>
+                </manifest>
+                <manifestFile>${project.build.outputDirectory}/META-INF/MANIFEST.MF</manifestFile>
+              </archive>
+
+<!--              <includes>-->
+<!--                <include>com/baeldung/instrumentation/application/AgentLoader.class</include>-->
+<!--                <include>com/baeldung/instrumentation/application/Launcher.class</include>-->
+<!--              </includes>-->
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+    </plugins>
+  </build>
+</project>
