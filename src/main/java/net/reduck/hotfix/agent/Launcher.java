@@ -1,13 +1,18 @@
 package net.reduck.hotfix.agent;
 
+import net.reduck.internal.org.objectweb.asm.ClassReader;
+
 import java.io.*;
 import java.lang.instrument.ClassFileTransformer;
-import java.lang.instrument.IllegalClassFormatException;
 import java.lang.instrument.Instrumentation;
 import java.net.MalformedURLException;
 import java.net.URL;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.security.ProtectionDomain;
-import java.util.*;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Properties;
 
 /**
  * @author Gin
@@ -16,42 +21,41 @@ import java.util.*;
 public class Launcher {
     static Log log = new Log();
 
+    private static final Map<String, byte[]> hotfixClass = new HashMap<>();
+
     public static void premain(String agentArgs, Instrumentation inst) {
-//        Properties properties = load("/tmp/agent.properties");
-//
-//        properties.getProperty("classNames").split()
-        Map<String, String> map = new HashMap<String, String>();
-        map.put("net.reduck.api.doc.descriptor.Agent".replace(".", "/"), "/Users/zhanjinkai/Documents/GitHub/reduck-hotfix-agent/class/Agent.class");
-        inst.addTransformer(new HotfixTransformer(map));
+        File file = new File(agentArgs);
+        init(file);
+
+        if (hotfixClass.isEmpty()) {
+            return;
+        }
+
+        log.info("args:" + agentArgs);
+        inst.addTransformer(new HotfixTransformer(hotfixClass));
+
     }
 
     public static class HotfixTransformer implements ClassFileTransformer {
-        private final Map<String, String> classNames;
+        private final Map<String, byte[]> classNames;
 
-
-        public HotfixTransformer(Map<String, String> classNames) {
+        public HotfixTransformer(Map<String, byte[]> classNames) {
             this.classNames = classNames;
         }
 
-        public byte[] transform(ClassLoader loader, String className, Class<?> classBeingRedefined, ProtectionDomain protectionDomain, byte[] classfileBuffer) throws IllegalClassFormatException {
-            log.info("load : " + className);
+        public byte[] transform(ClassLoader loader, String className, Class<?> classBeingRedefined, ProtectionDomain protectionDomain, byte[] classfileBuffer) {
             if (classNames == null || !classNames.containsKey(className)) {
                 return null;
             }
             log.info("replace :" + className);
-            try {
-                return readResource(className, classNames.get(className));
-            } catch (Exception e) {
-                log.info("error :" + e.getMessage());
-                return null;
-            }
+            return classNames.get(className);
         }
     }
 
     private static Properties load(String filePath) {
         Properties properties = new Properties();
         try {
-            properties.load(new FileInputStream(filePath));
+            properties.load(Files.newInputStream(Paths.get(filePath)));
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
@@ -91,9 +95,8 @@ public class Launcher {
         byte[] b;
         int p = 0;
         try {
-            InputStream in = res.openStream();
 
-            try {
+            try (InputStream in = res.openStream()) {
                 b = new byte[65536];
                 while (true) {
                     int r = in.read(b, p, b.length - p);
@@ -105,8 +108,6 @@ public class Launcher {
                         b = nb;
                     }
                 }
-            } finally {
-                in.close();
             }
         } catch (IOException e) {
             throw new ClassNotFoundException("I/O exception reading class " + name, e);
@@ -115,5 +116,55 @@ public class Launcher {
 
         System.arraycopy(b, 0, data, 0, p);
         return data;
+    }
+
+    public static byte[] readResource(File file) throws MalformedURLException {
+        URL res = file.toURI().toURL();
+        byte[] b;
+        int p = 0;
+        try {
+
+            try (InputStream in = res.openStream()) {
+                b = new byte[65536];
+                while (true) {
+                    int r = in.read(b, p, b.length - p);
+                    if (r == -1) break;
+                    p += r;
+                    if (p == b.length) {
+                        byte[] nb = new byte[b.length * 2];
+                        System.arraycopy(b, 0, nb, 0, p);
+                        b = nb;
+                    }
+                }
+            }
+        } catch (IOException e) {
+            throw new RuntimeException("Read " + file.getAbsolutePath() + " failed : " + e.getMessage());
+        }
+        byte[] data = new byte[p];
+
+        System.arraycopy(b, 0, data, 0, p);
+        return data;
+    }
+
+    private static void init(File root) {
+        if (root.exists()) {
+            if (root.isDirectory()) {
+                File[] subFiles = root.listFiles();
+                if (subFiles != null) {
+                    for (File file : subFiles) {
+                        init(file);
+                    }
+                }
+            } else {
+                if (root.getName().endsWith(".class")) {
+                    try {
+                        byte[] classData = readResource(root);
+                        hotfixClass.put(new ClassReader(classData).getClassName(), classData);
+                    } catch (Exception e) {
+                        throw new RuntimeException(e);
+                    }
+                }
+            }
+        }
     }
 }
